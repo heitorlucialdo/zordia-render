@@ -5,7 +5,7 @@ Convenção de texto (vale pra todo campo de texto):
   <span class="hl">trecho</span> -> trecho em roxo/gradiente
 Fotos (campo "img"): "foto:arquivo.jpg" (pasta assets/fotos) ou URL https.
 """
-import base64, math, pathlib, random
+import base64, math, pathlib, random, requests
 from playwright.sync_api import sync_playwright
 
 A = pathlib.Path(__file__).parent / "assets"
@@ -19,6 +19,32 @@ Z = {k: _uri(A / f"z_{k}.png", "image/png") for k in ("violet", "black", "light"
 FONT = _uri(A / "Geist-Variable.woff2", "font/woff2")
 
 
+_IMG_TIMEOUT = 6
+_IMG_MAX     = 8 * 1024 * 1024
+_IMG_CT      = {"image/jpeg": "image/jpeg", "image/jpg": "image/jpeg",
+                "image/png": "image/png", "image/webp": "image/webp"}
+_UA          = {"User-Agent": "Mozilla/5.0 (compatible; ZordIARender/1.0)"}
+
+def _sniff(b):
+    if b[:3] == b"\xff\xd8\xff": return "image/jpeg"
+    if b[:8] == b"\x89PNG\r\n\x1a\n": return "image/png"
+    if b[:4] == b"RIFF" and b[8:12] == b"WEBP": return "image/webp"
+    return ""
+
+def _fetch_uri(url):
+    """Baixa imagem externa -> data URI. NUNCA levanta; '' em qualquer falha."""
+    try:
+        r = requests.get(url, headers=_UA, timeout=_IMG_TIMEOUT)
+        r.raise_for_status()
+        ct   = r.headers.get("Content-Type", "").split(";")[0].strip().lower()
+        mime = _IMG_CT.get(ct) or _sniff(r.content)
+        if not mime or not r.content or len(r.content) > _IMG_MAX:
+            return ""
+        return f"data:{mime};base64," + base64.b64encode(r.content).decode()
+    except Exception:
+        return ""
+
+
 def foto(src):
     if not src:
         return ""
@@ -27,7 +53,9 @@ def foto(src):
         if p.exists():
             return _uri(p, "image/png" if p.suffix == ".png" else "image/jpeg")
         return ""
-    return src if src.startswith("http") else ""
+    if src.startswith("http"):
+        return _fetch_uri(src)
+    return ""
 
 
 def strong(t):
