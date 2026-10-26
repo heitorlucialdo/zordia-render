@@ -513,7 +513,7 @@ def render_pngs(slides, fmt="png"):
     css = CSS.replace("__FONT__", FONT)
     with sync_playwright() as p:
         br = p.chromium.launch(args=["--no-sandbox"])
-        pg = br.new_page(viewport={"width": 1080, "height": 1350}, device_scale_factor=1)
+        pg = br.new_page(viewport={"width": 1080, "height": 1350}, device_scale_factor=2)
         for s in slides:
             fn = LAYOUTS.get(s.get("layout"))
             if not fn:
