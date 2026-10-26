@@ -294,8 +294,9 @@ def donut(d):
 
 def cta(d):
     s = foto(d.get("img"))
+    icon = f'<img src="{Z["light"]}" alt="">'
     bg = (f'<img class="fx bgimg" src="{s}" alt=""><div class="fx bgshade2"></div>' if s
-          else f'<div class="fx cglow"></div><div class="fx ctaz">{glass_icon(f"<img src=\'{Z["light"]}\' alt=\'\'>", 470)}</div><div class="fx vfade2"></div>')
+          else f'<div class="fx cglow"></div><div class="fx ctaz">{glass_icon(icon, 470)}</div><div class="fx vfade2"></div>')
     return f"""<div class="slide t-dark ct-s">{bg}
       {head('dark', d.get('page'))}
       <div class="ctb">
