@@ -5,7 +5,7 @@ Convenção de texto (vale pra todo campo de texto):
   <span class="hl">trecho</span> -> trecho em roxo/gradiente
 Fotos (campo "img"): "foto:arquivo.jpg" (pasta assets/fotos) ou URL https.
 """
-import base64, math, pathlib, random, requests
+import base64, math, pathlib, random, requests, traceback
 from playwright.sync_api import sync_playwright
 
 A = pathlib.Path(__file__).parent / "assets"
@@ -542,15 +542,19 @@ def render_pngs(slides, fmt="png"):
     with sync_playwright() as p:
         br = p.chromium.launch(args=["--no-sandbox"])
         pg = br.new_page(viewport={"width": 1080, "height": 1350}, device_scale_factor=2)
-        for s in slides:
+        for i, s in enumerate(slides):
             fn = LAYOUTS.get(s.get("layout"))
             if not fn:
                 continue
-            html = f"<!doctype html><html><head><meta charset='utf-8'><style>{css}</style></head><body>{fn(s)}</body></html>"
-            pg.set_content(html, wait_until="networkidle")
-            pg.evaluate("document.fonts.ready")
-            pg.evaluate(FIT_JS)
-            pg.wait_for_timeout(120)
-            out.append(pg.screenshot(type="jpeg", quality=90) if fmt == "jpeg" else pg.screenshot())
+            try:
+                html = f"<!doctype html><html><head><meta charset='utf-8'><style>{css}</style></head><body>{fn(s)}</body></html>"
+                pg.set_content(html, wait_until="networkidle")
+                pg.evaluate("document.fonts.ready")
+                pg.evaluate(FIT_JS)
+                pg.wait_for_timeout(120)
+                out.append(pg.screenshot(type="jpeg", quality=90) if fmt == "jpeg" else pg.screenshot())
+            except Exception:
+                print(f"[render] slide {i} layout={s.get('layout')!r} falhou, pulando:\n{traceback.format_exc()}", flush=True)
+                continue
         br.close()
     return out
