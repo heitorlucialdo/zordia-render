@@ -148,18 +148,23 @@ def photo_or_fallback(src, cls="pimg"):
 def cover(d):
     style = d.get("style", "icone")
     if style == "pergunta":
+        # "?" 3D decorativo agora é opcional: só aparece com decor:true (default limpo)
+        decor = q3d(760) if d.get("decor") else ""
         return f"""<div class="slide t-violet cov-q">{mesh()}<div class="fx vglow"></div>
           {head('violet', d.get('page'))}
           <h1 class="cq fit">{d['title']}</h1>
           <p class="cqs">{d.get('sub','')}</p>
           {swipe('inline')}
-          {q3d(760)}
+          {decor}
         </div>"""
-    if style == "foto" and foto(d.get("img")):
-        return f"""<div class="slide t-dark cov-f"><img class="fx bgimg" src="{foto(d['img'])}" alt="">
+    src = foto(d.get("img")) if style == "foto" else ""   # baixa 1x; '' se falhar -> cai na capa de marca
+    if style == "foto" and src:
+        return f"""<div class="slide t-dark cov-f"><img class="fx bgimg" src="{src}" alt="">
           <div class="fx bgshade"></div>
           {head('dark', d.get('page'))}
-          <h1 class="ct fit">{d['title']}</h1><p class="cs">{d.get('sub','')}</p>{swipe('center')}
+          <h1 class="ct l fit">{d['title']}</h1>
+          <p class="cs l">{d.get('sub','')}</p>
+          {swipe('center')}
         </div>"""
     return f"""<div class="slide t-dark cov-i">{ui_bg()}<div class="fx cglow"></div><div class="fx vfade"></div>
       {head('dark', d.get('page'))}
@@ -402,13 +407,14 @@ b{font-weight:600;color:var(--fg)}
 .gicon::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:3px;background:linear-gradient(140deg,rgba(230,205,255,.95),rgba(162,59,255,.25) 35%,rgba(255,255,255,0) 60%,rgba(162,59,255,.7));
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
 .gicon img{width:60%;filter:drop-shadow(0 0 26px rgba(205,150,255,.95)) drop-shadow(0 0 70px rgba(162,59,255,.7))}
-.ct{font-size:calc(116px*var(--k));line-height:1;font-weight:600;letter-spacing:-.045em;text-align:center;margin-top:auto;text-wrap:balance}
+.ct{font-size:calc(150px*var(--k));line-height:.98;font-weight:600;letter-spacing:-.05em;text-align:center;margin-top:auto;text-wrap:balance}
 .ct.l{text-align:left}
 .cs{font-size:40px;line-height:1.35;color:rgba(255,255,255,.72);text-align:center;margin-top:34px;text-wrap:balance}
+.cs.l{text-align:left}
 /* capa pergunta */
 .mesh{inset:0;width:100%;height:100%}
 .vglow{right:-200px;top:300px;width:900px;height:900px;background:radial-gradient(closest-side,rgba(190,120,255,.35),transparent);filter:blur(20px)}
-.cq{font-size:calc(132px*var(--k));line-height:.92;font-weight:700;letter-spacing:-.035em;text-transform:uppercase;margin-top:auto;max-width:900px;color:#fff;text-wrap:balance}
+.cq{font-size:calc(158px*var(--k));line-height:.9;font-weight:700;letter-spacing:-.04em;text-transform:uppercase;margin-top:auto;max-width:960px;color:#fff;text-wrap:balance}
 .cqs{font-size:44px;line-height:1.3;color:rgba(255,255,255,.8);margin-top:34px;max-width:760px}
 .cov-q .swipe.inline{margin-bottom:150px}
 .q3d{position:absolute;right:-90px;bottom:40px;line-height:1;font-weight:700;transform:rotate(14deg);z-index:2;filter:drop-shadow(0 40px 80px rgba(20,0,60,.6))}
