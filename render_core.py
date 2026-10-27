@@ -5,7 +5,7 @@ Convenção de texto (vale pra todo campo de texto):
   <span class="hl">trecho</span> -> trecho em roxo/gradiente
 Fotos (campo "img"): "foto:arquivo.jpg" (pasta assets/fotos) ou URL https.
 """
-import base64, math, pathlib, random, requests, traceback
+import base64, math, pathlib, random, re, requests, traceback
 from playwright.sync_api import sync_playwright
 
 A = pathlib.Path(__file__).parent / "assets"
@@ -137,11 +137,20 @@ def q3d(size=820):
             f'<span class="fr">?</span></div>')
 
 
-def photo_or_fallback(src, cls="pimg"):
+def _plain(t):
+    """Tira tags (<b>, <span>) pra usar texto cru dentro do card de vidro."""
+    return re.sub(r"<[^>]+>", "", t or "").strip()
+
+
+def photo_or_fallback(src, cls="pimg", label=""):
+    """Foto quando há URL; senão, painel de vidro com Z marca d'água no canto
+    (+ texto opcional centralizado). Nunca fica vazio nem com Z gigante boiando."""
     s = foto(src)
     if s:
         return f'<img class="{cls}" src="{s}" alt="">'
-    return f'<div class="{cls} pfb"><img src="{Z["violet"]}" alt=""></div>'
+    inner = f'<div class="pfx">{label}</div>' if label else ""
+    return (f'<div class="{cls} pfb">{inner}'
+            f'<img class="wm" src="{Z["violet"]}" alt=""></div>')
 
 
 # ---------------------------------------------------------------- layouts
@@ -160,7 +169,7 @@ def cover(d):
     src = foto(d.get("img")) if style == "foto" else ""   # baixa 1x; '' se falhar -> cai na capa de marca
     if style == "foto" and src:
         return f"""<div class="slide t-dark cov-f"><img class="fx bgimg" src="{src}" alt="">
-          <div class="fx bgshade"></div>
+          <div class="fx cfshade"></div>
           {head('dark', d.get('page'))}
           <h1 class="ct l fit">{d['title']}</h1>
           <p class="cs l">{d.get('sub','')}</p>
@@ -179,8 +188,14 @@ def texto(d):
     th = d.get("theme", "dark")
     card = ""
     if d.get("img") is not None or d.get("img_caption"):
-        cap = f'<div class="pcap">{d.get("img_caption","")}</div>' if d.get("img_caption") else ""
-        card = f'<div class="pcard">{photo_or_fallback(d.get("img"))}{cap}</div>'
+        s = foto(d.get("img"))          # baixa 1x
+        cap_txt = d.get("img_caption", "")
+        if s:
+            cap = f'<div class="pcap">{cap_txt}</div>' if cap_txt else ""
+            card = f'<div class="pcard"><img class="pimg" src="{s}" alt="">{cap}</div>'
+        else:                            # fallback -> painel de vidro com texto centralizado
+            lbl = _plain(cap_txt) or _plain(d.get("title", ""))
+            card = f'<div class="pcard">{photo_or_fallback(d.get("img"), label=lbl)}</div>'
     return f"""<div class="slide t-{th} txt"><div class="fx dots"></div>
       {head(th, d.get('page'))}
       <h2 class="h fit">{strong(d['title'])}</h2>
@@ -210,7 +225,10 @@ def lista(d):
 def numeros(d):
     th = d.get("theme", "light")
     cards = "".join(
-        f'<div class="ncard"><div class="nn">{c["num"]}</div><div class="nl">{c["label"]}</div></div>'
+        f'<div class="ncard"><div class="nn">{c["num"]}</div>'
+        f'<div class="nl">{c["label"]}</div>'
+        f'{f"""<div class="nd">{c["desc"]}</div>""" if c.get("desc") else ""}'
+        f'</div>'
         for c in d["cards"][:2])
     return f"""<div class="slide t-{th} num"><div class="fx arcs"></div>
       {head(th, d.get('page'))}
@@ -225,7 +243,8 @@ def numeros(d):
 def comparativo(d):
     th = d.get("theme", "dark")
     cards = "".join(f'<div class="ocard">{c}</div>' for c in d["cards"][:2])
-    img = f'<div class="pcard short">{photo_or_fallback(d.get("img"))}</div>' if d.get("img") is not None else ""
+    img = (f'<div class="pcard short">{photo_or_fallback(d.get("img"), label=_plain(d.get("title","")))}</div>'
+           if d.get("img") is not None else "")
     return f"""<div class="slide t-{th} cmp"><div class="fx dots"></div><div class="fx bigarc"></div>
       {head(th, d.get('page'))}
       <h2 class="h grad fit">{d['title']}</h2>
@@ -326,7 +345,19 @@ def donut(d):
 
 
 def cta(d):
+    style = d.get("style", "centro")
     s = foto(d.get("img"))
+    # formato lateral: Z gigante cortado na direita, texto/CTA à esquerda (sem foto)
+    if style == "lateral" and not s:
+        return f"""<div class="slide t-dark cta-lat"><div class="fx cglow2"></div>
+          {head('dark', d.get('page'))}
+          <div class="fx zhalf"><img src="{Z["light"]}" alt=""></div>
+          <div class="latb">
+            <h2 class="cth l fit">{d['title']}</h2>
+            <p class="p">{d.get('text','')}</p>
+            <div class="btn">{d.get('button','Comenta RENATA')} {ic('diagonal', 34, 2.2)}</div>
+          </div>
+        </div>"""
     icon = f'<img src="{Z["light"]}" alt="">'
     bg = (f'<img class="fx bgimg" src="{s}" alt=""><div class="fx bgshade2"></div>' if s
           else f'<div class="fx cglow"></div><div class="fx ctaz">{glass_icon(icon, 470)}</div><div class="fx vfade2"></div>')
@@ -423,13 +454,19 @@ b{font-weight:600;color:var(--fg)}
 /* capa foto / cta foto */
 .bgimg{inset:0;width:100%;height:100%;object-fit:cover}
 .bgshade{inset:0;background:linear-gradient(180deg,rgba(5,4,7,.35),rgba(5,4,7,.2) 35%,rgba(5,4,7,.92) 72%,#050407)}
+/* capa foto: overlay preto->roxo da marca + brilho roxo embaixo, mantendo legibilidade */
+.cfshade{inset:0;background:linear-gradient(180deg,rgba(5,4,7,.3),rgba(18,4,38,.55) 42%,rgba(8,2,18,.93) 76%,#050407),radial-gradient(120% 75% at 78% 102%,rgba(162,59,255,.42),transparent 58%)}
+.cov-f .ct b{color:#C89BFF}
 .bgshade2{inset:0;background:linear-gradient(180deg,rgba(5,4,7,.2),rgba(5,4,7,.55) 40%,rgba(5,4,7,.95) 70%)}
 /* texto + foto */
 .pcard{position:relative;margin-top:64px;height:560px;border-radius:36px;overflow:hidden;border:2px solid rgba(162,59,255,.45);box-shadow:0 30px 90px rgba(0,0,0,.5);flex:none}
 .pcard.short{height:330px;margin-top:40px}
 .pimg{width:100%;height:100%;object-fit:cover;display:block}
-.pfb{display:grid;place-items:center;background:radial-gradient(60% 80% at 70% 30%,rgba(162,59,255,.55),transparent 70%),radial-gradient(50% 60% at 20% 80%,rgba(90,20,200,.6),transparent 70%),#0d0716}
-.pfb img{width:34%;opacity:.35;filter:blur(1px)}
+.pfb{position:relative;display:grid;place-items:center;overflow:hidden;background:rgba(162,59,255,.05);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)}
+.pfb::before{content:"";position:absolute;width:460px;height:460px;top:-140px;right:-120px;border-radius:50%;background:radial-gradient(closest-side,rgba(162,59,255,.5),transparent);filter:blur(26px)}
+.pfb::after{content:"";position:absolute;inset:0;border:1.5px solid rgba(162,59,255,.22);border-radius:inherit;pointer-events:none}
+.pfb .wm{position:absolute;right:30px;bottom:26px;width:88px;opacity:.5;filter:drop-shadow(0 0 14px rgba(162,59,255,.5))}
+.pfb .pfx{position:relative;z-index:2;max-width:80%;text-align:center;font-size:40px;line-height:1.25;font-weight:600;letter-spacing:-.02em;color:#fff;text-wrap:balance;padding:0 30px}
 .pcap{position:absolute;left:0;right:0;bottom:0;padding:120px 44px 40px;font-size:36px;line-height:1.38;color:#fff;background:linear-gradient(transparent,rgba(5,4,7,.92) 55%)}
 /* lista */
 .lst ul{list-style:none;display:flex;flex-direction:column;gap:46px;margin-top:110px}
@@ -452,6 +489,7 @@ b{font-weight:600;color:var(--fg)}
 .t-dark .ncard{background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1)}
 .nn{font-size:calc(128px*var(--k));line-height:.9;font-weight:600;letter-spacing:-.055em;background:linear-gradient(100deg,#E2C6FF,#A23BFF 60%,#7B2FE0);-webkit-background-clip:text;background-clip:text;color:transparent}
 .nl{font-size:30px;line-height:1.25;color:#B98AFF;margin-top:22px;font-weight:500}
+.nd{font-size:25px;line-height:1.32;color:rgba(255,255,255,.58);margin-top:14px;letter-spacing:-.01em}
 /* comparativo */
 .h.grad{color:transparent;background:linear-gradient(100deg,#F0E2FF 0%,#C08BFF 45%,#8F4BFF 100%);-webkit-background-clip:text;background-clip:text;margin-top:100px}
 .orow{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:48px}
@@ -524,6 +562,14 @@ b{font-weight:600;color:var(--fg)}
 .ctb{margin-top:auto;margin-bottom:96px;display:flex;flex-direction:column;align-items:center;text-align:center}
 .ctz{height:64px;margin-bottom:40px}
 .cth{font-size:calc(92px*var(--k));line-height:1.02;font-weight:600;letter-spacing:-.04em;text-wrap:balance}
+.cth.l{text-align:left}
+/* cta lateral: Z pela metade na direita, conteudo a esquerda */
+.cta-lat{justify-content:center}
+.cta-lat .latb{position:relative;max-width:540px;display:flex;flex-direction:column;align-items:flex-start}
+.cta-lat .latb .p{margin-top:28px}
+.cta-lat .btn{margin-top:52px}
+.zhalf{right:-360px;top:50%;transform:translateY(-50%);width:860px;height:860px;display:grid;place-items:center;filter:drop-shadow(0 0 90px rgba(162,59,255,.55))}
+.zhalf img{width:100%;opacity:.95}
 .ct-s .p{color:rgba(255,255,255,.62)}
 .btn{display:inline-flex;align-items:center;gap:14px;margin-top:56px;padding:30px 56px;border-radius:14px;font-size:38px;font-weight:600;color:#fff;background:linear-gradient(100deg,#B65CFF,#7B2FE0);box-shadow:0 24px 80px rgba(162,59,255,.5)}
 .btn.w{align-self:flex-start;margin-bottom:40px}
